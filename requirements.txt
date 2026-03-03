@@ -1,1 +1,8 @@
-
+streamlit
+pandas
+ta
+requests
+pyotp
+smartapi-python
+logzero
+websocket-client
