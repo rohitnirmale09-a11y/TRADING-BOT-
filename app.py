@@ -6,8 +6,11 @@ from scanner import run_scanner
 from sector_strength import get_strong_sectors
 from institutional_flow import analyze_institutional_flow
 from option_selector import select_option
+from index_engine import analyze_index
+from stock_engine import analyze_stock
 
-# ================= PAGE =================
+
+# ================= PAGE CONFIG =================
 
 st.set_page_config(
     page_title="AI Swing Option Engine",
@@ -15,8 +18,36 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📈 AI Swing Option Trading Dashboard")
-st.caption("Institutional Style Swing Scanner")
+# ================= CUSTOM CSS =================
+
+st.markdown("""
+<style>
+
+.main-title{
+font-size:36px;
+font-weight:bold;
+color:#1f77b4;
+}
+
+.section-title{
+font-size:24px;
+font-weight:bold;
+margin-top:20px;
+}
+
+.card{
+padding:15px;
+border-radius:10px;
+background-color:#f7f7f7;
+margin-bottom:10px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="main-title">📈 AI Swing Option Trading Dashboard</div>', unsafe_allow_html=True)
+st.caption("Institutional Style Market Scanner")
+
 
 # ================= LOGIN =================
 
@@ -26,124 +57,265 @@ def login():
 
 smartApi = login()
 
-# ================= BUTTON =================
 
-if st.button("🚀 Scan Market"):
+# ================= SIDEBAR =================
 
-    # ================= INSTITUTIONAL FLOW =================
+st.sidebar.title("Trading Controls")
 
-    st.subheader("Institutional Flow")
+mode = st.sidebar.selectbox(
+    "Select Mode",
+    [
+        "F&O Market Scanner",
+        "NIFTY Analysis",
+        "BANKNIFTY Analysis",
+        "Custom Stock Analysis"
+    ]
+)
 
-    flow = analyze_institutional_flow("NIFTY")
+st.sidebar.markdown("---")
 
-    col1, col2 = st.columns(2)
+st.sidebar.info(
+"""
+Engine Uses:
 
-    with col1:
-        st.metric("PCR", flow["PCR"])
+• Institutional Flow  
+• Sector Strength  
+• Trend + RSI  
+• Liquidity Sweep  
+• Smart Money Zones  
+• ATR Volatility  
+"""
+)
 
-    with col2:
-        st.metric("Market Sentiment", flow["sentiment"])
+# ================= F&O SCANNER =================
 
-    # ================= SECTOR STRENGTH =================
+if mode == "F&O Market Scanner":
 
-    st.subheader("Sector Strength")
+    st.markdown('<div class="section-title">📊 Market Scanner</div>', unsafe_allow_html=True)
 
-    sectors = get_strong_sectors(smartApi)
+    if st.button("🚀 Scan Market"):
 
-    sector_table = []
+        # ================= INSTITUTIONAL FLOW =================
 
-    for s in sectors:
-        sector_table.append({
-            "Sector": s[0],
-            "Strength": round(s[1],2)
-        })
+        flow = analyze_institutional_flow("NIFTY")
 
-    st.dataframe(pd.DataFrame(sector_table), use_container_width=True)
+        st.markdown('<div class="section-title">Institutional Flow</div>', unsafe_allow_html=True)
 
-    # ================= RUN SCANNER =================
+        c1,c2 = st.columns(2)
 
-    st.subheader("Scanning F&O Stocks")
+        with c1:
+            st.metric("PCR", flow["PCR"])
 
-    results = run_scanner(smartApi)
+        with c2:
+            st.metric("Market Sentiment", flow["sentiment"])
 
-    if not results:
-        st.warning("No setup found")
-        st.stop()
 
-    # ================= ALL SCANNED STOCKS =================
+        # ================= SECTOR STRENGTH =================
 
-    st.subheader("All Trade Signals")
+        st.markdown('<div class="section-title">Sector Strength Ranking</div>', unsafe_allow_html=True)
 
-    table = []
+        sectors = get_strong_sectors(smartApi)
 
-    for r in results:
+        sector_data = []
+
+        for s in sectors:
+            sector_data.append({
+                "Sector": s[0],
+                "Strength": round(s[1],2)
+            })
+
+        df_sector = pd.DataFrame(sector_data)
+
+        st.dataframe(df_sector, use_container_width=True)
+
+
+        # ================= TOP 2 SECTORS =================
+
+        st.markdown('<div class="section-title">Strong Sectors Today</div>', unsafe_allow_html=True)
+
+        st.dataframe(df_sector.head(2), use_container_width=True)
+
+
+        # ================= RUN SCANNER =================
+
+        with st.spinner("Scanning F&O Stocks..."):
+
+            results = run_scanner(smartApi)
+
+        if not results:
+            st.warning("No trade setups found")
+            st.stop()
+
+
+        # ================= ALL SIGNALS =================
+
+        st.markdown('<div class="section-title">All Trade Signals</div>', unsafe_allow_html=True)
+
+        table = []
+
+        for r in results:
+
+            option = select_option(
+                r["symbol"],
+                r["direction"],
+                r["spot"]
+            )
+
+            if option:
+
+                strike = option["strike"]
+                expiry = option["expiry"]
+                lot = option["lot_size"]
+                option_symbol = option["symbol"]
+
+            else:
+
+                strike = "-"
+                expiry = "-"
+                lot = "-"
+                option_symbol = "-"
+
+            table.append({
+
+                "Stock": r["symbol"],
+                "Direction": r["direction"],
+                "Probability": str(r["probability"])+"%",
+                "Volatility": r["volatility"],
+                "Zone": r["smart_zone"],
+                "Spot": round(r["spot"],2),
+                "Option": option_symbol,
+                "Strike": strike,
+                "Expiry": expiry,
+                "Lot Size": lot
+            })
+
+        df = pd.DataFrame(table)
+
+        st.dataframe(df, use_container_width=True)
+
+
+        # ================= TOP 5 =================
+
+        st.markdown('<div class="section-title">Top 5 Trades</div>', unsafe_allow_html=True)
+
+        top5 = df.head(5)
+
+        for i,row in top5.iterrows():
+
+            st.markdown(f"""
+            <div class="card">
+
+            <b>{row["Stock"]}</b><br>
+
+            Direction: {row["Direction"]} <br>
+            Probability: {row["Probability"]} <br>
+            Volatility: {row["Volatility"]} <br>
+            Zone: {row["Zone"]} <br>
+
+            Spot: {row["Spot"]} <br>
+
+            Option: {row["Option"]} <br>
+            Strike: {row["Strike"]} <br>
+            Expiry: {row["Expiry"]} <br>
+            Lot Size: {row["Lot Size"]}
+
+            </div>
+            """, unsafe_allow_html=True)
+
+
+# ================= INDEX ANALYSIS =================
+
+elif mode == "NIFTY Analysis":
+
+    st.subheader("NIFTY Analysis")
+
+    if st.button("Analyze NIFTY"):
+
+        result = analyze_index(smartApi,"NIFTY")
+
+        if not result:
+            st.warning("No setup found")
+            st.stop()
 
         option = select_option(
-            r["symbol"],
-            r["direction"],
-            r["spot"]
+            "NIFTY",
+            result["direction"],
+            result["spot"]
         )
+
+        st.metric("Direction", result["direction"])
+        st.metric("Spot", round(result["spot"],2))
 
         if option:
 
-            strike = option["strike"]
-            expiry = option["expiry"]
-            lot = option["lot_size"]
-            option_symbol = option["symbol"]
+            st.write("Option:", option["symbol"])
+            st.write("Strike:", option["strike"])
+            st.write("Expiry:", option["expiry"])
+            st.write("Lot Size:", option["lot_size"])
 
-        else:
 
-            strike = "-"
-            expiry = "-"
-            lot = "-"
-            option_symbol = "-"
+elif mode == "BANKNIFTY Analysis":
 
-        table.append({
+    st.subheader("BANKNIFTY Analysis")
 
-            "Stock": r["symbol"],
-            "Direction": r["direction"],
-            "Probability": str(r["probability"])+"%",
-            "Volatility": r["volatility"],
-            "Zone": r["smart_zone"],
-            "Spot": round(r["spot"],2),
-            "Option": option_symbol,
-            "Strike": strike,
-            "Expiry": expiry,
-            "Lot Size": lot
-        })
+    if st.button("Analyze BANKNIFTY"):
 
-    df = pd.DataFrame(table)
+        result = analyze_index(smartApi,"BANKNIFTY")
 
-    st.dataframe(df, use_container_width=True)
+        if not result:
+            st.warning("No setup found")
+            st.stop()
 
-    # ================= TOP 5 =================
+        option = select_option(
+            "BANKNIFTY",
+            result["direction"],
+            result["spot"]
+        )
 
-    st.subheader("Top 5 Trades")
+        st.metric("Direction", result["direction"])
+        st.metric("Spot", round(result["spot"],2))
 
-    top5 = df.head(5)
+        if option:
 
-    for i, row in top5.iterrows():
+            st.write("Option:", option["symbol"])
+            st.write("Strike:", option["strike"])
+            st.write("Expiry:", option["expiry"])
+            st.write("Lot Size:", option["lot_size"])
 
-        st.markdown("### "+row["Stock"])
 
-        c1, c2, c3, c4 = st.columns(4)
+# ================= CUSTOM STOCK =================
 
-        with c1:
-            st.metric("Direction", row["Direction"])
+elif mode == "Custom Stock Analysis":
 
-        with c2:
-            st.metric("Probability", row["Probability"])
+    st.subheader("Custom Stock")
 
-        with c3:
-            st.metric("Volatility", row["Volatility"])
+    symbol = st.text_input("Enter Stock Symbol")
 
-        with c4:
-            st.metric("Zone", row["Zone"])
+    if st.button("Analyze"):
 
-        st.write("Spot:", row["Spot"])
-        st.write("Option:", row["Option"])
-        st.write("Strike:", row["Strike"])
-        st.write("Expiry:", row["Expiry"])
-        st.write("Lot Size:", row["Lot Size"])
+        result = analyze_stock(smartApi, symbol.upper())
 
-        st.markdown("---")
+        if not result:
+            st.warning("No setup found")
+            st.stop()
+
+        option = select_option(
+            result["symbol"],
+            result["direction"],
+            result["spot"]
+        )
+
+        st.metric("Direction", result["direction"])
+        st.metric("Probability", str(result["probability"])+"%")
+
+        st.metric("Volatility", result["volatility"])
+        st.metric("Smart Zone", result["smart_zone"])
+
+        st.write("Spot:", round(result["spot"],2))
+
+        if option:
+
+            st.write("Option:", option["symbol"])
+            st.write("Strike:", option["strike"])
+            st.write("Expiry:", option["expiry"])
+            st.write("Lot Size:", option["lot_size"])
