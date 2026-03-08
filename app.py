@@ -1,287 +1,212 @@
 import streamlit as st
-from SmartApi import SmartConnect
-import pyotp
 import pandas as pd
-import ta
-from datetime import datetime, timedelta
-import requests
-import math
 
-# ================= PAGE =================
+from angel_login import angel_login
+from scanner import run_scanner
+from option_selector import select_option
+from index_engine import analyze_index
+from stock_engine import analyze_stock
 
-st.set_page_config(page_title="Institutional Swing Option Engine", layout="wide")
-st.title("📈 Institutional Swing Option Engine")
+# ================= PAGE CONFIG =================
 
-# ================= SECRETS =================
+st.set_page_config(
+    page_title="AI Swing Option Engine",
+    page_icon="📈",
+    layout="wide"
+)
 
-API_KEY = st.secrets["API_KEY"]
-CLIENT_ID = st.secrets["CLIENT_ID"]
-PASSWORD = st.secrets["PASSWORD"]
-TOTP_SECRET = st.secrets["TOTP_SECRET"]
+st.title("📈 AI Swing Option Trading Dashboard")
+st.caption("Institutional Style Swing Trading Scanner")
 
 # ================= LOGIN =================
 
 @st.cache_resource
-def angel_login():
-    smartApi = SmartConnect(api_key=API_KEY)
-    otp = pyotp.TOTP(TOTP_SECRET).now()
-    session = smartApi.generateSession(CLIENT_ID, PASSWORD, otp)
-    return smartApi
+def login():
+    return angel_login()
 
-smartApi = angel_login()
+smartApi = login()
 
-# ================= SIDEBAR INPUT =================
+# ================= SIDEBAR =================
 
-st.sidebar.header("Trade Settings")
+st.sidebar.title("Trading Controls")
 
-capital = st.sidebar.number_input("Enter Your Trading Capital ₹", value=20000.0)
-
-choice = st.sidebar.selectbox(
-    "Select Underlying",
-    ["NIFTY", "BANKNIFTY", "Top 5 Stocks", "Custom Stock"]
+mode = st.sidebar.selectbox(
+    "Select Analysis Mode",
+    [
+        "F&O Market Scanner",
+        "NIFTY Analysis",
+        "BANKNIFTY Analysis",
+        "Custom Stock Analysis"
+    ]
 )
 
-if choice == "Custom Stock":
-    custom = st.sidebar.text_input("Enter Stock Symbol (example SBIN)")
-else:
-    custom = None
+st.sidebar.markdown("---")
 
-# ================= SYMBOL SELECTION =================
+st.sidebar.info(
+"""
+This engine scans:
 
-top5 = ["RELIANCE", "HDFCBANK", "ICICIBANK", "TCS", "INFY"]
+• Institutional Flow  
+• Sector Strength  
+• Trend + RSI  
+• Liquidity Sweep  
+• Smart Money Zones  
+• Volatility (ATR)
+"""
+)
 
-if choice == "NIFTY":
-    symbols = ["NIFTY"]
-elif choice == "BANKNIFTY":
-    symbols = ["BANKNIFTY"]
-elif choice == "Top 5 Stocks":
-    symbols = top5
-elif choice == "Custom Stock" and custom:
-    symbols = [custom.upper()]
-else:
-    symbols = []
+# ================= F&O SCANNER =================
 
-index_tokens = {
-    "NIFTY": "99926000",
-    "BANKNIFTY": "99926009"
-}
+if mode == "F&O Market Scanner":
 
-# ================= ANALYSIS FUNCTION =================
+    st.subheader("📊 F&O Market Scanner")
 
-def analyze_symbol(symbol):
+    if st.button("🚀 Scan Market"):
 
-    if symbol in index_tokens:
-        token = index_tokens[symbol]
-        exchange = "NSE"
-    else:
-        search = smartApi.searchScrip("NSE", symbol)
-        if "data" not in search or not search["data"]:
-            return None
+        with st.spinner("Scanning F&O Stocks..."):
 
-        eq_symbol = None
-        for item in search["data"]:
-            if item["tradingsymbol"].endswith("-EQ"):
-                eq_symbol = item
-                break
+            results = run_scanner(smartApi)
 
-        if not eq_symbol:
-            return None
+        if not results:
+            st.warning("No trade setup found.")
+            st.stop()
 
-        token = eq_symbol["symboltoken"]
-        exchange = "NSE"
+        table = []
 
-    # DAILY
-    daily = smartApi.getCandleData({
-        "exchange": exchange,
-        "symboltoken": token,
-        "interval": "ONE_DAY",
-        "fromdate": (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d %H:%M"),
-        "todate": datetime.now().strftime("%Y-%m-%d %H:%M")
-    })
+        for r in results:
 
-    if "data" not in daily or not daily["data"]:
-        return None
+            option = select_option(
+                r["symbol"],
+                r["direction"],
+                r["spot"]
+            )
 
-    df_daily = pd.DataFrame(daily["data"], columns=["t","o","h","l","c","v"])
-    df_daily["c"] = df_daily["c"].astype(float)
-    df_daily["ema20"] = ta.trend.ema_indicator(df_daily["c"],20)
-    df_daily["ema50"] = ta.trend.ema_indicator(df_daily["c"],50)
+            table.append({
+                "Stock": r["symbol"],
+                "Direction": r["direction"],
+                "Probability": str(r["probability"])+"%",
+                "Volatility": r["volatility"],
+                "Smart Zone": r["smart_zone"],
+                "Spot Price": round(r["spot"],2),
+                "Option": option["symbol"] if option else "-"
+            })
 
-    daily_latest = df_daily.iloc[-1]
+        df = pd.DataFrame(table)
 
-    if daily_latest["ema20"] > daily_latest["ema50"]:
-        trend = "BULLISH"
-    elif daily_latest["ema20"] < daily_latest["ema50"]:
-        trend = "BEARISH"
-    else:
-        return None
+        st.success("Top Trade Opportunities")
 
-    # INTRADAY
-    intra = smartApi.getCandleData({
-        "exchange": exchange,
-        "symboltoken": token,
-        "interval": "FIVE_MINUTE",
-        "fromdate": (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d %H:%M"),
-        "todate": datetime.now().strftime("%Y-%m-%d %H:%M")
-    })
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
 
-    if "data" not in intra or not intra["data"]:
-        return None
+# ================= NIFTY =================
 
-    df = pd.DataFrame(intra["data"], columns=["t","o","h","l","c","v"])
-    df = df.astype({"c":float,"h":float,"l":float,"v":float})
+elif mode == "NIFTY Analysis":
 
-    df["ema20"] = ta.trend.ema_indicator(df["c"],20)
-    df["ema50"] = ta.trend.ema_indicator(df["c"],50)
-    df["rsi"] = ta.momentum.rsi(df["c"],14)
-    df["avg_vol"] = df["v"].rolling(20).mean()
-    df["atr"] = ta.volatility.average_true_range(df["h"],df["l"],df["c"],14)
+    st.subheader("📊 NIFTY Index Analysis")
 
-    latest = df.iloc[-1]
+    if st.button("Analyze NIFTY"):
 
-    call_score = 0
-    put_score = 0
+        result = analyze_index(smartApi,"NIFTY")
 
-    if latest["ema20"] > latest["ema50"]:
-        call_score += 1
-    else:
-        put_score += 1
+        if not result:
+            st.warning("No setup found")
+            st.stop()
 
-    if latest["rsi"] > 55:
-        call_score += 1
-    elif latest["rsi"] < 45:
-        put_score += 1
+        option = select_option(
+            "NIFTY",
+            result["direction"],
+            result["spot"]
+        )
 
-    high20 = df["h"].rolling(20).max().iloc[-2]
-    low20 = df["l"].rolling(20).min().iloc[-2]
+        col1, col2 = st.columns(2)
 
-    if latest["c"] > high20:
-        call_score += 1
-    elif latest["c"] < low20:
-        put_score += 1
+        with col1:
+            st.metric("Direction", result["direction"])
+            st.metric("Spot Price", round(result["spot"],2))
 
-    if latest["v"] > 1.5 * latest["avg_vol"]:
-        if call_score > put_score:
-            call_score += 1
-        else:
-            put_score += 1
+        with col2:
+            if option:
+                st.metric("Strike", option["strike"])
+                st.metric("Option", option["symbol"])
 
-    if trend == "BULLISH" and call_score >= 2:
-        direction = "CALL"
-        score = call_score
-    elif trend == "BEARISH" and put_score >= 2:
-        direction = "PUT"
-        score = put_score
-    else:
-        return None
+# ================= BANKNIFTY =================
 
-    return {
-        "symbol": symbol,
-        "direction": direction,
-        "score": score,
-        "spot": latest["c"],
-        "atr": latest["atr"]
-    }
+elif mode == "BANKNIFTY Analysis":
 
-# ================= MAIN BUTTON =================
+    st.subheader("📊 BANKNIFTY Index Analysis")
 
-if st.button("🚀 Generate Trade Plan"):
+    if st.button("Analyze BANKNIFTY"):
 
-    best = None
+        result = analyze_index(smartApi,"BANKNIFTY")
 
-    for s in symbols:
-        r = analyze_symbol(s)
-        if r:
-            if not best or r["score"] > best["score"]:
-                best = r
+        if not result:
+            st.warning("No setup found")
+            st.stop()
 
-    if not best:
-        st.warning("No setup found.")
-        st.stop()
+        option = select_option(
+            "BANKNIFTY",
+            result["direction"],
+            result["spot"]
+        )
 
-    # RISK
-    if best["score"] >= 4:
-        risk_percent = 3
-        label = "STRONG"
-    elif best["score"] == 3:
-        risk_percent = 2
-        label = "GOOD"
-    else:
-        risk_percent = 1
-        label = "WEAK"
+        col1, col2 = st.columns(2)
 
-    risk_amount = capital * (risk_percent/100)
+        with col1:
+            st.metric("Direction", result["direction"])
+            st.metric("Spot Price", round(result["spot"],2))
 
-    # OPTION MASTER
-    url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
-    master = requests.get(url).json()
-    options = pd.DataFrame(master)
+        with col2:
+            if option:
+                st.metric("Strike", option["strike"])
+                st.metric("Option", option["symbol"])
 
-    symbol = best["symbol"]
+# ================= CUSTOM STOCK =================
 
-    if symbol in ["NIFTY","BANKNIFTY"]:
-        options = options[(options["name"]==symbol) & (options["instrumenttype"]=="OPTIDX")]
-    else:
-        options = options[(options["name"]==symbol) & (options["instrumenttype"]=="OPTSTK")]
+elif mode == "Custom Stock Analysis":
 
-    options["expiry"] = pd.to_datetime(options["expiry"], errors="coerce")
-    options = options.dropna(subset=["expiry"])
+    st.subheader("📊 Custom Stock Analysis")
 
-    nearest = options[options["expiry"]>=datetime.now()]["expiry"].min()
-    options = options[options["expiry"]==nearest]
+    symbol = st.text_input("Enter Stock Symbol (Example: SBIN)")
 
-    options["strike"] = pd.to_numeric(options["strike"],errors="coerce")/100
+    if st.button("Analyze Stock"):
 
-    spot = best["spot"]
+        if not symbol:
+            st.warning("Enter stock symbol")
+            st.stop()
 
-    unique_strikes = sorted(options["strike"].unique())
-    step = min([abs(unique_strikes[i+1]-unique_strikes[i]) for i in range(len(unique_strikes)-1)])
+        result = analyze_stock(smartApi, symbol.upper())
 
-    atm = round(spot/step)*step
-    option_type = "CE" if best["direction"]=="CALL" else "PE"
+        if not result:
+            st.warning("No trade setup found")
+            st.stop()
 
-    final = options[(options["strike"]==atm) &
-                    (options["symbol"].str.endswith(option_type))].iloc[0]
+        option = select_option(
+            result["symbol"],
+            result["direction"],
+            result["spot"]
+        )
 
-    ltp = smartApi.ltpData(final["exch_seg"], final["symbol"], final["token"])
-    premium = ltp["data"]["ltp"]
-    lot_size = int(final["lotsize"])
+        col1, col2 = st.columns(2)
 
-    premium_stop = premium * 0.5
-    risk_per_lot = premium_stop * lot_size
+        with col1:
+            st.metric("Stock", result["symbol"])
+            st.metric("Direction", result["direction"])
+            st.metric("Probability", str(result["probability"])+"%")
 
-    lots = math.floor(risk_amount / risk_per_lot)
-    warning = False
+        with col2:
+            st.metric("Volatility", result["volatility"])
+            st.metric("Smart Zone", result["smart_zone"])
+            st.metric("Spot Price", round(result["spot"],2))
 
-    if lots < 1:
-        warning = True
-        lots = 1
+        st.markdown("---")
 
-    total_qty = lots * lot_size
-    capital_required = premium * total_qty
-    max_loss = risk_per_lot * lots
-    target_premium = premium * 1.5
-    potential_profit = (target_premium - premium) * total_qty
+        if option:
 
-    # OUTPUT
-    st.subheader("📊 Final Trade Plan")
+            st.subheader("Suggested Option Trade")
 
-    st.write("Underlying:", symbol)
-    st.write("Direction:", best["direction"])
-    st.write("Strength:", label)
-    st.write("Spot:", round(spot,2))
-    st.write("Expiry:", nearest.date())
-    st.write("Strike:", atm)
-    st.write("Option Type:", option_type)
-    st.write("Premium:", premium)
-    st.write("Lot Size:", lot_size)
-    st.write("Lots To Buy:", lots)
-    st.write("Total Quantity:", total_qty)
-    st.write("Capital Required:", round(capital_required,2))
-    st.write("Ideal Risk Allowed:", round(risk_amount,2))
-    st.write("Actual Risk Taking:", round(max_loss,2))
-    st.write("Target Premium:", round(target_premium,2))
-    st.write("Potential Profit:", round(potential_profit,2))
-
-    if warning:
-        st.error("⚠ Capital too small for proper risk sizing.")
+            st.write("Option Symbol:", option["symbol"])
+            st.write("Strike:", option["strike"])
+            st.write("Expiry:", option["expiry"])
+            st.write("Lot Size:", option["lot_size"])
