@@ -5,6 +5,17 @@ from plotly.subplots import make_subplots
 import ta
 from datetime import datetime, timedelta
 
+# ================= PAGE CONFIG =================
+
+st.set_page_config(layout="wide")
+
+st.markdown("""
+<style>
+
+.stApp {
+background-color:#0f172a;
+}
+
 from angel_login import angel_login
 from scanner import run_scanner
 from sector_strength import sectors, analyze_sector
@@ -424,8 +435,9 @@ if mode == "F&O Market Scanner":
 
 elif mode == "NIFTY Analysis":
 
-    if st.button("Analyze NIFTY"):
+    if st.button("Analyze NIFTY") or st.session_state.get("mode") == "NIFTY":
         st.session_state["mode"]="NIFTY"
+
 
         st.subheader("Institutional Flow")
 
@@ -493,15 +505,16 @@ Spot Price: **{round(result["spot"],2)}**
             "NONE",
             "nifty_chart"
         )
-        st.rerun()
+        
 
 
 # ================= BANKNIFTY ANALYSIS =================
 
 elif mode == "BANKNIFTY Analysis":
 
-    if st.button("Analyze BANKNIFTY"):
+    if st.button("Analyze BANKNIFTY") or st.session_state.get("mode")=="BANKNIFTY":
         st.session_state["mode"]="BANKNIFTY"
+
 
 
         st.subheader("Institutional Flow")
@@ -567,7 +580,7 @@ Spot Price: **{round(result["spot"],2)}**
             "NONE",
             "banknifty_chart"
         )
-        st.rerun()
+        
 
 
 # ================= CUSTOM STOCK =================
@@ -633,5 +646,6 @@ Spot Price: **{round(result["spot"],2)}**
         indicator_chart(
             smartApi,
             symbol.upper(),
-            result["smart_zone"]
+            result["smart_zone"],
+            "custom_chart"
         )
