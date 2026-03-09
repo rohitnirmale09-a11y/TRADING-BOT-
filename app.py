@@ -154,7 +154,7 @@ def get_sector_strength(api):
 
 # ================= INDICATOR CHART =================
 
-def indicator_chart(smartApi, symbol, zone):
+def indicator_chart(smartApi, symbol, zone,chart_id):
 
     search = smartApi.searchScrip("NSE", symbol)
 
@@ -268,7 +268,7 @@ def indicator_chart(smartApi, symbol, zone):
         title=symbol+" Technical Chart"
     )
 
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,use_container_width=True,key=chart_id)
 
 
 # ================= SECTOR ROTATION MAP =================
@@ -409,7 +409,8 @@ if mode == "F&O Market Scanner":
             indicator_chart(
                 smartApi,
                 row["Stock"],
-                row["Zone"]
+                row["Zone"],
+                f"chart_{i}"
             )
         
             st.markdown("---")
