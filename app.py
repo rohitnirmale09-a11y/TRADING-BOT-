@@ -493,6 +493,7 @@ Spot Price: **{round(result["spot"],2)}**
             "NONE",
             "nifty_chart"
         )
+        st.rerun()
 
 
 # ================= BANKNIFTY ANALYSIS =================
@@ -566,6 +567,7 @@ Spot Price: **{round(result["spot"],2)}**
             "NONE",
             "banknifty_chart"
         )
+        st.rerun()
 
 
 # ================= CUSTOM STOCK =================
