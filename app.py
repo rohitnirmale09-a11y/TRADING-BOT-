@@ -419,23 +419,7 @@ if mode == "F&O Market Scanner":
 
             
 
-            prob=int(row["Probability"].replace("%",""))
-
-            probability_gauge(prob)
-
-            ai_trade_explanation(
-                row["Direction"],
-                row["Zone"],
-                row["Volatility"]
-            )
-
-            indicator_chart(
-                smartApi,
-                row["Stock"],
-                row["Zone"]
-            )
-
-            st.markdown("---")
+            
 # ================= NIFTY ANALYSIS =================
 
 elif mode == "NIFTY Analysis":
@@ -506,7 +490,8 @@ Spot Price: **{round(result["spot"],2)}**
         indicator_chart(
             smartApi,
             "NIFTY",
-            "NONE"
+            "NONE",
+            "nifty_chart"
         )
 
 
@@ -578,7 +563,8 @@ Spot Price: **{round(result["spot"],2)}**
         indicator_chart(
             smartApi,
             "BANKNIFTY",
-            "NONE"
+            "NONE",
+            "banknifty_chart"
         )
 
 
