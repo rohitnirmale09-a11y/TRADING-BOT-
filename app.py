@@ -425,7 +425,7 @@ if mode == "F&O Market Scanner":
 elif mode == "NIFTY Analysis":
 
     if st.button("Analyze NIFTY"):
-        st.session_state["last_scan"]="NIFTY"
+        st.session_state["mode"]="NIFTY"
 
         st.subheader("Institutional Flow")
 
@@ -501,7 +501,7 @@ Spot Price: **{round(result["spot"],2)}**
 elif mode == "BANKNIFTY Analysis":
 
     if st.button("Analyze BANKNIFTY"):
-        st.session_state["last_scan"]="BANKNIFTY"
+        st.session_state["mode"]="BANKNIFTY"
 
 
         st.subheader("Institutional Flow")
