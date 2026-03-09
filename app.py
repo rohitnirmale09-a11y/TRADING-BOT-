@@ -16,15 +16,6 @@ from index_engine import analyze_index
 
 # ================= PAGE CONFIG =================
 
-st.set_page_config(
-    page_title="AI Swing Option Engine",
-    page_icon="📈",
-    layout="wide"
-)
-
-
-# ================= DARK TRADING THEME =================
-
 st.markdown("""
 <style>
 
@@ -32,48 +23,34 @@ st.markdown("""
 background-color:#0f172a;
 }
 
-/* MAIN TEXT */
-html, body, [class*="css"]  {
-color:#ffffff;
-}
-
-/* SIDEBAR */
-[data-testid="stSidebar"] {
-background-color:#111827;
-}
-
-/* TABLE TEXT */
-[data-testid="stDataFrame"] {
+/* Text */
+html, body {
 color:white;
 }
 
-/* SELECT BOX */
-div[data-baseweb="select"] {
-color:white;
-}
-
-/* INPUT BOX */
-input {
+/* Headers */
+h1, h2, h3, h4, h5, h6 {
 color:white !important;
 }
 
-/* METRIC CARDS */
-.metric-card{
-background-color:#1e293b;
-padding:20px;
-border-radius:10px;
-text-align:center;
-color:white;
+/* Paragraph */
+p {
+color:#e5e7eb !important;
 }
 
-.call{
-color:#22c55e;
-font-weight:bold;
+/* Metrics */
+[data-testid="stMetricValue"] {
+color:white !important;
+font-size:28px !important;
 }
 
-.put{
-color:#ef4444;
-font-weight:bold;
+[data-testid="stMetricLabel"] {
+color:#cbd5e1 !important;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+background-color:#111827;
 }
 
 </style>
@@ -480,24 +457,7 @@ elif mode == "NIFTY Analysis":
         st.markdown("---")
 
         # Sector Strength
-        sector_data=[]
-
-        for sector,stocks in sectors.items():
-
-            strength = analyze_sector(smartApi,stocks)
-
-            sector_data.append({
-                "Sector":sector,
-                "Strength":round(strength,2)
-            })
-
-        sector_df=pd.DataFrame(sector_data)
-        sector_df=sector_df.sort_values(by="Strength",ascending=False)
-
-        sector_rotation_map(sector_df)
-
-        st.subheader("Sector Strength Ranking")
-        st.dataframe(sector_df,use_container_width=True)
+        
 
         st.markdown("---")
 
