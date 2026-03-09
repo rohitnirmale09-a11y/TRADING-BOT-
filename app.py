@@ -570,8 +570,8 @@ elif mode == "BANKNIFTY Analysis":
 
         result = analyze_index(smartApi,"BANKNIFTY")
         if not result:
-        st.warning("NO NIFTY SETUP FOUND.")
-        st.stop()
+            st.warning("NO NIFTY SETUP FOUND.")
+            st.stop()
 
         option = select_option(
             "BANKNIFTY",
