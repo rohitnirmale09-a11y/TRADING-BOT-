@@ -134,7 +134,6 @@ def ai_trade_explanation(direction, zone, volatility):
 
 # ================= SECTOR CACHE =================
 
-@st.cache_data(ttl=600)
 def get_sector_strength(api):
 
     sector_data = []
@@ -441,6 +440,7 @@ if mode == "F&O Market Scanner":
 elif mode == "NIFTY Analysis":
 
     if st.button("Analyze NIFTY"):
+        st.session_state["last_scan"]="NIFTY"
 
         st.subheader("Institutional Flow")
 
@@ -514,6 +514,8 @@ Spot Price: **{round(result["spot"],2)}**
 elif mode == "BANKNIFTY Analysis":
 
     if st.button("Analyze BANKNIFTY"):
+        st.session_state["last_scan"]="BANKNIFTY"
+
 
         st.subheader("Institutional Flow")
 
@@ -535,7 +537,7 @@ elif mode == "BANKNIFTY Analysis":
 
         result = analyze_index(smartApi,"BANKNIFTY")
         if not result:
-            st.warning("NO NIFTY SETUP FOUND.")
+            st.warning("NO BANKNIFTY SETUP FOUND.")
             st.stop()
 
         option = select_option(
