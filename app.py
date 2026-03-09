@@ -28,51 +28,52 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-/* MAIN BACKGROUND */
 .stApp {
-    background-color:#0f172a;
+background-color:#0f172a;
 }
 
-/* TEXT COLOR */
+/* MAIN TEXT */
 html, body, [class*="css"]  {
-    color: white;
+color:#ffffff;
 }
 
 /* SIDEBAR */
 [data-testid="stSidebar"] {
-    background-color:#111827;
+background-color:#111827;
 }
 
-/* METRIC CARD */
-.metric-card {
-    background-color:#1e293b;
-    padding:20px;
-    border-radius:10px;
-    text-align:center;
-    color:white;
-}
-
-/* CALL SIGNAL */
-.call {
-    color:#22c55e;
-    font-weight:bold;
-}
-
-/* PUT SIGNAL */
-.put {
-    color:#ef4444;
-    font-weight:bold;
-}
-
-/* INPUT BOX */
-input, textarea {
-    color:white !important;
-    background-color:#1e293b !important;
+/* TABLE TEXT */
+[data-testid="stDataFrame"] {
+color:white;
 }
 
 /* SELECT BOX */
 div[data-baseweb="select"] {
-    color:white !important;
+color:white;
+}
+
+/* INPUT BOX */
+input {
+color:white !important;
+}
+
+/* METRIC CARDS */
+.metric-card{
+background-color:#1e293b;
+padding:20px;
+border-radius:10px;
+text-align:center;
+color:white;
+}
+
+.call{
+color:#22c55e;
+font-weight:bold;
+}
+
+.put{
+color:#ef4444;
+font-weight:bold;
 }
 
 </style>
@@ -568,24 +569,7 @@ elif mode == "BANKNIFTY Analysis":
 
         st.markdown("---")
 
-        sector_data=[]
-
-        for sector,stocks in sectors.items():
-
-            strength = analyze_sector(smartApi,stocks)
-
-            sector_data.append({
-                "Sector":sector,
-                "Strength":round(strength,2)
-            })
-
-        sector_df=pd.DataFrame(sector_data)
-        sector_df=sector_df.sort_values(by="Strength",ascending=False)
-
-        sector_rotation_map(sector_df)
-
-        st.subheader("Sector Strength Ranking")
-        st.dataframe(sector_df,use_container_width=True)
+        
 
         st.markdown("---")
 
