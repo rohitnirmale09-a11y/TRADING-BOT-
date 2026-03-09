@@ -28,10 +28,55 @@ st.set_page_config(
 st.markdown("""
 <style>
 
+/* MAIN BACKGROUND */
 .stApp {
     background-color:#0f172a;
+}
+
+/* ALL TEXT WHITE */
+html, body, [class*="css"]  {
+    color: white;
+}
+
+/* SIDEBAR */
+[data-testid="stSidebar"] {
+    background-color:#111827;
+}
+
+/* METRIC CARD */
+.metric-card {
+    background-color:#1e293b;
+    padding:20px;
+    border-radius:10px;
+    text-align:center;
     color:white;
 }
+
+/* CALL SIGNAL */
+.call {
+    color:#22c55e;
+    font-weight:bold;
+}
+
+/* PUT SIGNAL */
+.put {
+    color:#ef4444;
+    font-weight:bold;
+}
+
+/* INPUT BOX */
+input, textarea {
+    color:white !important;
+    background-color:#1e293b !important;
+}
+
+/* SELECT BOX */
+div[data-baseweb="select"] {
+    color:white !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 [data-testid="stSidebar"] {
     background-color:#111827;
