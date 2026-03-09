@@ -5,16 +5,7 @@ from plotly.subplots import make_subplots
 import ta
 from datetime import datetime, timedelta
 
-# ================= PAGE CONFIG =================
 
-st.set_page_config(layout="wide")
-
-st.markdown("""
-<style>
-
-.stApp {
-background-color:#0f172a;
-}
 
 from angel_login import angel_login
 from scanner import run_scanner
@@ -27,8 +18,11 @@ from index_engine import analyze_index
 
 # ================= PAGE CONFIG =================
 
+st.set_page_config(layout="wide")
+
 st.markdown("""
 <style>
+
 
 .stApp {
 background-color:#0f172a;
