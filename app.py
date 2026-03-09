@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
-import streamlit.components.v1 as components
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import ta
+from datetime import datetime, timedelta
 
 from angel_login import angel_login
 from scanner import run_scanner
@@ -18,6 +21,40 @@ st.set_page_config(
     page_icon="📈",
     layout="wide"
 )
+
+# ================= DARK TRADING THEME =================
+
+st.markdown("""
+<style>
+
+.stApp {
+    background-color:#0f172a;
+    color:white;
+}
+
+[data-testid="stSidebar"] {
+    background-color:#111827;
+}
+
+.metric-card {
+    background-color:#1e293b;
+    padding:20px;
+    border-radius:10px;
+    text-align:center;
+}
+
+.call {
+    color:#22c55e;
+    font-weight:bold;
+}
+
+.put {
+    color:#ef4444;
+    font-weight:bold;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 st.title("📈 AI Swing Option Trading Dashboard")
 st.caption("Institutional Style Swing Trading Scanner")
@@ -62,160 +99,293 @@ Scanner Includes
 )
 
 
-# ================= TRADINGVIEW CHART =================
+# ================= PROBABILITY GAUGE =================
 
-def tradingview_chart(symbol):
+def probability_gauge(prob):
 
-    html = f"""
-    <div class="tradingview-widget-container">
-      <div id="tradingview_chart"></div>
-      <script src="https://s3.tradingview.com/tv.js"></script>
+    bars = int(prob / 5)
+    gauge = "█"*bars + "░"*(20-bars)
 
-      <script>
-      new TradingView.widget(
-      {{
-        "width": "100%",
-        "height": 500,
-        "symbol": "NSE:{symbol}",
-        "interval": "5",
-        "timezone": "Asia/Kolkata",
-        "theme": "dark",
-        "style": "1",
-        "toolbar_bg": "#1f2937",
-        "enable_publishing": false,
-        "hide_side_toolbar": false,
-        "container_id": "tradingview_chart"
-      }});
-      </script>
-    </div>
-    """
+    st.markdown(f"""
+**Signal Strength**
 
-    components.html(html, height=520)
+`[{gauge}] {prob}%`
+""")
 
 
-# ================= F&O MARKET SCANNER =================
+# ================= AI TRADE EXPLANATION =================
+
+def ai_trade_explanation(direction, zone, volatility):
+
+    st.markdown("### 🧠 AI Trade Explanation")
+
+    if direction == "CALL":
+        st.write("✔ Trend: EMA20 above EMA50 (bullish trend)")
+        st.write("✔ Momentum: RSI indicates buying pressure")
+        st.write("✔ Breakout: Price moving above resistance")
+    else:
+        st.write("✔ Trend: EMA20 below EMA50 (bearish trend)")
+        st.write("✔ Momentum: RSI indicates selling pressure")
+        st.write("✔ Breakdown: Price moving below support")
+
+    st.write("✔ Smart Money Zone:", zone)
+    st.write("✔ Volatility:", volatility)
+
+
+# ================= INDICATOR CHART =================
+
+def indicator_chart(smartApi, symbol, zone):
+
+    search = smartApi.searchScrip("NSE", symbol)
+
+    if "data" not in search or not search["data"]:
+        return
+
+    token = None
+
+    for item in search["data"]:
+        if item["tradingsymbol"].endswith("-EQ"):
+            token = item["symboltoken"]
+
+    if not token:
+        return
+
+    candles = smartApi.getCandleData({
+
+        "exchange": "NSE",
+        "symboltoken": token,
+        "interval": "FIVE_MINUTE",
+
+        "fromdate": (datetime.now()-timedelta(days=3)).strftime("%Y-%m-%d %H:%M"),
+        "todate": datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    })
+
+    if "data" not in candles:
+        return
+
+    df = pd.DataFrame(
+        candles["data"],
+        columns=["t","o","h","l","c","v"]
+    )
+
+    df = df.astype({
+        "o":float,
+        "h":float,
+        "l":float,
+        "c":float,
+        "v":float
+    })
+
+    df["ema20"] = ta.trend.ema_indicator(df["c"],20)
+    df["ema50"] = ta.trend.ema_indicator(df["c"],50)
+    df["rsi"] = ta.momentum.rsi(df["c"],14)
+
+    high20 = df["h"].rolling(20).max()
+    low20 = df["l"].rolling(20).min()
+
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        row_heights=[0.6,0.2,0.2],
+        vertical_spacing=0.03
+    )
+
+    fig.add_trace(go.Candlestick(
+        x=df["t"], open=df["o"], high=df["h"],
+        low=df["l"], close=df["c"], name="Price"),
+        row=1,col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["t"],y=df["ema20"],line=dict(color="blue"),name="EMA20"),
+        row=1,col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["t"],y=df["ema50"],line=dict(color="orange"),name="EMA50"),
+        row=1,col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["t"],y=high20,line=dict(color="green",dash="dot"),
+        name="Breakout High"), row=1,col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["t"],y=low20,line=dict(color="red",dash="dot"),
+        name="Breakout Low"), row=1,col=1)
+
+    if zone == "SUPPLY":
+        fig.add_hrect(
+            y0=df["h"].max()*0.98,
+            y1=df["h"].max(),
+            fillcolor="red",
+            opacity=0.2,
+            line_width=0,
+            row=1,col=1)
+
+    if zone == "DEMAND":
+        fig.add_hrect(
+            y0=df["l"].min(),
+            y1=df["l"].min()*1.02,
+            fillcolor="green",
+            opacity=0.2,
+            line_width=0,
+            row=1,col=1)
+
+    fig.add_trace(go.Bar(x=df["t"],y=df["v"],name="Volume"),
+        row=2,col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["t"],y=df["rsi"],line=dict(color="purple"),name="RSI"),
+        row=3,col=1)
+
+    fig.update_layout(
+        template="plotly_dark",
+        height=700,
+        xaxis_rangeslider_visible=False,
+        title=symbol+" Technical Chart"
+    )
+
+    st.plotly_chart(fig,use_container_width=True)
+
+
+# ================= SECTOR ROTATION MAP =================
+
+def sector_rotation_map(df):
+
+    st.subheader("📊 Sector Rotation Map")
+
+    cols = st.columns(5)
+
+    for i,row in df.iterrows():
+
+        strength = row["Strength"]
+
+        if strength >= 0.6:
+            icon = "🟢"
+        elif strength >= 0.3:
+            icon = "🟡"
+        else:
+            icon = "🔴"
+
+        with cols[i % 5]:
+            st.markdown(f"""
+### {row["Sector"]}
+
+{icon} {strength}
+""")
+
+
+# ================= MARKET SCANNER =================
 
 if mode == "F&O Market Scanner":
 
     if st.button("🚀 Scan Market"):
 
-        # ===== INSTITUTIONAL FLOW =====
-
         st.subheader("Institutional Flow")
 
         flow = analyze_institutional_flow("NIFTY")
 
-        col1, col2 = st.columns(2)
+        col1,col2 = st.columns(2)
 
         with col1:
-            st.metric("PCR", flow["PCR"])
+            st.markdown(f"""
+<div class="metric-card">
+PCR
+<h2>{flow["PCR"]}</h2>
+</div>
+""", unsafe_allow_html=True)
 
         with col2:
-            st.metric("Market Sentiment", flow["sentiment"])
+
+            sentiment_class = "call" if flow["sentiment"]=="BULLISH" else "put"
+
+            st.markdown(f"""
+<div class="metric-card">
+Market Sentiment
+<h2 class="{sentiment_class}">{flow["sentiment"]}</h2>
+</div>
+""", unsafe_allow_html=True)
 
         st.markdown("---")
 
+        sector_data=[]
 
-        # ===== SECTOR STRENGTH =====
+        for sector,stocks in sectors.items():
 
-        st.subheader("Sector Strength Ranking")
-
-        sector_data = []
-
-        for sector, stocks in sectors.items():
-
-            strength = analyze_sector(smartApi, stocks)
+            strength=analyze_sector(smartApi,stocks)
 
             sector_data.append({
-                "Sector": sector,
-                "Strength": round(strength,2)
+                "Sector":sector,
+                "Strength":round(strength,2)
             })
 
-        sector_df = pd.DataFrame(sector_data)
+        sector_df=pd.DataFrame(sector_data)
+        sector_df=sector_df.sort_values(by="Strength",ascending=False)
 
-        sector_df = sector_df.sort_values(
-            by="Strength",
-            ascending=False
-        )
+        sector_rotation_map(sector_df)
 
-        st.dataframe(sector_df, use_container_width=True)
-
-
-        # ===== STRONG SECTORS =====
+        st.subheader("Sector Strength Ranking")
+        st.dataframe(sector_df,use_container_width=True)
 
         st.subheader("Strong Sectors Today")
-
-        strong = sector_df.head(2)
-
-        st.dataframe(strong, use_container_width=True)
+        st.dataframe(sector_df.head(2),use_container_width=True)
 
         st.markdown("---")
-
-
-        # ===== SCAN STOCKS =====
 
         st.subheader("All Trade Signals")
 
-        results = run_scanner(smartApi)
+        results=run_scanner(smartApi)
 
         if not results:
             st.warning("No trade setup found.")
             st.stop()
 
-        rows = []
+        rows=[]
 
         for r in results:
 
-            option = select_option(
-                r["symbol"],
-                r["direction"],
-                r["spot"]
-            )
+            option=select_option(r["symbol"],r["direction"],r["spot"])
 
-            row = {
-                "Stock": r["symbol"],
-                "Direction": r["direction"],
-                "Probability": str(r["probability"])+"%",
-                "Volatility": r["volatility"],
-                "Zone": r["smart_zone"],
-                "Spot": round(r["spot"],2)
+            row={
+                "Stock":r["symbol"],
+                "Direction":r["direction"],
+                "Probability":str(r["probability"])+"%",
+                "Volatility":r["volatility"],
+                "Zone":r["smart_zone"],
+                "Spot":round(r["spot"],2)
             }
 
             if option:
-
-                row["Option"] = option["symbol"]
-                row["Strike"] = option["strike"]
-                row["Expiry"] = option["expiry"]
-                row["Lot Size"] = option["lot_size"]
-
+                row["Option"]=option["symbol"]
+                row["Strike"]=option["strike"]
+                row["Expiry"]=option["expiry"]
+                row["Lot Size"]=option["lot_size"]
             else:
-
-                row["Option"] = "-"
-                row["Strike"] = "-"
-                row["Expiry"] = "-"
-                row["Lot Size"] = "-"
+                row["Option"]="-"
+                row["Strike"]="-"
+                row["Expiry"]="-"
+                row["Lot Size"]="-"
 
             rows.append(row)
 
-        signals_df = pd.DataFrame(rows)
+        signals_df=pd.DataFrame(rows)
 
-        st.dataframe(signals_df, use_container_width=True)
+        st.dataframe(signals_df,use_container_width=True)
 
         st.markdown("---")
 
-
-        # ===== TOP 5 TRADES =====
-
         st.subheader("Top 5 Trades")
 
-        top5 = signals_df.head(5)
+        top5=signals_df.head(5)
 
         for i,row in top5.iterrows():
+
+            direction_class = "call" if row["Direction"]=="CALL" else "put"
 
             st.markdown(f"""
 ### {row["Stock"]}
 
-Direction: **{row["Direction"]}**
+Direction: **<span class="{direction_class}">{row["Direction"]}</span>**
 
 Probability: **{row["Probability"]}**
 
@@ -232,129 +402,22 @@ Strike: **{row["Strike"]}**
 Expiry: **{row["Expiry"]}**
 
 Lot Size: **{row["Lot Size"]}**
-""")
+""", unsafe_allow_html=True)
 
-            tradingview_chart(row["Stock"])
+            prob=int(row["Probability"].replace("%",""))
+
+            probability_gauge(prob)
+
+            ai_trade_explanation(
+                row["Direction"],
+                row["Zone"],
+                row["Volatility"]
+            )
+
+            indicator_chart(
+                smartApi,
+                row["Stock"],
+                row["Zone"]
+            )
 
             st.markdown("---")
-
-
-# ================= NIFTY ANALYSIS =================
-
-elif mode == "NIFTY Analysis":
-
-    if st.button("Analyze NIFTY"):
-
-        result = analyze_index(smartApi,"NIFTY")
-
-        if not result:
-            st.warning("No setup found")
-            st.stop()
-
-        option = select_option(
-            "NIFTY",
-            result["direction"],
-            result["spot"]
-        )
-
-        st.subheader("NIFTY Signal")
-
-        st.metric("Direction", result["direction"])
-        st.metric("Spot Price", round(result["spot"],2))
-
-        if option:
-
-            st.subheader("Suggested Option Trade")
-
-            st.write("Option:", option["symbol"])
-            st.write("Strike:", option["strike"])
-            st.write("Expiry:", option["expiry"])
-            st.write("Lot Size:", option["lot_size"])
-
-        tradingview_chart("NIFTY")
-
-
-# ================= BANKNIFTY ANALYSIS =================
-
-elif mode == "BANKNIFTY Analysis":
-
-    if st.button("Analyze BANKNIFTY"):
-
-        result = analyze_index(smartApi,"BANKNIFTY")
-
-        if not result:
-            st.warning("No setup found")
-            st.stop()
-
-        option = select_option(
-            "BANKNIFTY",
-            result["direction"],
-            result["spot"]
-        )
-
-        st.subheader("BANKNIFTY Signal")
-
-        st.metric("Direction", result["direction"])
-        st.metric("Spot Price", round(result["spot"],2))
-
-        if option:
-
-            st.subheader("Suggested Option Trade")
-
-            st.write("Option:", option["symbol"])
-            st.write("Strike:", option["strike"])
-            st.write("Expiry:", option["expiry"])
-            st.write("Lot Size:", option["lot_size"])
-
-        tradingview_chart("BANKNIFTY")
-
-
-# ================= CUSTOM STOCK =================
-
-elif mode == "Custom Stock Analysis":
-
-    symbol = st.text_input("Enter Stock Symbol (Example: SBIN)")
-
-    if st.button("Analyze Stock"):
-
-        if not symbol:
-            st.warning("Enter stock symbol")
-            st.stop()
-
-        result = analyze_stock(
-            smartApi,
-            symbol.upper()
-        )
-
-        if not result:
-            st.warning("No trade setup found")
-            st.stop()
-
-        option = select_option(
-            result["symbol"],
-            result["direction"],
-            result["spot"]
-        )
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric("Direction", result["direction"])
-            st.metric("Probability", str(result["probability"])+"%")
-
-        with col2:
-            st.metric("Volatility", result["volatility"])
-            st.metric("Smart Zone", result["smart_zone"])
-
-        st.metric("Spot Price", round(result["spot"],2))
-
-        if option:
-
-            st.subheader("Suggested Option Trade")
-
-            st.write("Option:", option["symbol"])
-            st.write("Strike:", option["strike"])
-            st.write("Expiry:", option["expiry"])
-            st.write("Lot Size:", option["lot_size"])
-
-        tradingview_chart(symbol.upper())
