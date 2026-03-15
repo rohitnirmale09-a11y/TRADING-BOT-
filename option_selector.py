@@ -2,7 +2,6 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-
 def select_option(symbol, direction, spot):
 
     url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
@@ -23,11 +22,18 @@ def select_option(symbol, direction, spot):
         return None
 
     # expiry
-    df["expiry"] = pd.to_datetime(df["expiry"],format="mixed", errors="coerce")
+    df["expiry"] = pd.to_datetime(df["expiry"], format="mixed", errors="coerce")
     df = df.dropna(subset=["expiry"])
 
-    nearest = df[df["expiry"] >= datetime.now()]["expiry"].min()
-    df = df[df["expiry"] == nearest]
+    # ===== CHOOSE NEXT WEEK EXPIRY =====
+    expiries = sorted(df[df["expiry"] >= datetime.now()]["expiry"].unique())
+
+    if len(expiries) > 1:
+        chosen_expiry = expiries[1]   # next week expiry
+    else:
+        chosen_expiry = expiries[0]   # fallback if only one expiry
+
+    df = df[df["expiry"] == chosen_expiry]
 
     # strike
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce") / 100
@@ -42,11 +48,7 @@ def select_option(symbol, direction, spot):
     # ===== FIND ATM STRIKE =====
     df["distance"] = abs(df["strike"] - spot)
 
-
-   
-
     atm = df.sort_values("distance").iloc[0]
-
 
     return {
         "symbol": atm["symbol"],
